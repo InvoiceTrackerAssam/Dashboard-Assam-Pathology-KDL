@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assam Pathology Dashboard</title>
+  <meta name="description" content="Daily patient, test and revenue dashboard for the Assam Pathology PPP project (Krsnaa Diagnostics Ltd, NHM Assam).">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a78d6'/%3E%3Cpath d='M8 22l5-6 4 4 7-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M8 22l5-6 4 4 7-9" /></svg>
+      </div>
+      <div>
+        <h1>Assam Pathology Project</h1>
+        <p class="sub">Daily Performance Dashboard · Krsnaa Diagnostics Ltd · NHM Assam (PPP)</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnUpload" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0l-5 5m5-5l5 5M4 20h16"/></svg>
+        Upload Excel
+      </button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+      <div class="menu">
+        <button class="btn" id="btnMenu" type="button" aria-haspopup="true" aria-expanded="false">More ▾</button>
+        <div class="menu-list" id="menuList" role="menu" hidden>
+          <button type="button" role="menuitem" data-action="template">Download Excel template</button>
+          <button type="button" role="menuitem" data-action="export">Export daily summary (Excel)</button>
+          <button type="button" role="menuitem" data-action="backup">Backup data (file)</button>
+          <button type="button" role="menuitem" data-action="restore">Restore data from backup</button>
+          <hr>
+          <button type="button" role="menuitem" data-action="theme">Switch light / dark</button>
+          <button type="button" role="menuitem" data-action="clear" class="danger">Clear all data</button>
+        </div>
+      </div>
+      <input type="file" id="restoreInput" accept=".json" hidden>
+    </div>
+  </header>
+
+  <main>
+    <!-- Empty state -->
+    <section class="empty" id="emptyState" hidden>
+      <div class="drop" id="dropZone">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0l-5 5m5-5l5 5M4 20h16"/></svg>
+        <h2>Upload your first daily Excel file</h2>
+        <p>Drag and drop the file here, or click <b>Upload Excel</b>. The dashboard reads the patient, test and revenue data and updates automatically.</p>
+        <div class="row-btns">
+          <button class="btn primary" type="button" id="btnUpload2">Choose Excel file</button>
+          <button class="btn" type="button" data-action="template">Download template</button>
+          <button class="btn ghost" type="button" id="btnDemo">View with sample data</button>
+        </div>
+        <p class="hint">Supported: one row per test (Date, Patient ID, Test Name, Amount …) or a daily summary (Date, Patients, Tests, Revenue …). District and Facility columns are optional.</p>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <div id="dashboard" hidden>
+      <div class="demo-banner" id="demoBanner" hidden>
+        Showing <b>sample data</b> for preview only. <button class="link" type="button" data-action="clear">Clear sample data</button> before uploading real files.
+      </div>
+
+      <section class="filters" aria-label="Filters">
+        <label>Report date
+          <input type="date" id="fReportDate">
+        </label>
+        <label>Period
+          <select id="fPeriod">
+            <option value="mtd">Month to date</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="all">All data</option>
+            <option value="custom">Custom range</option>
+          </select>
+        </label>
+        <label id="fFromWrap" hidden>From
+          <input type="date" id="fFrom">
+        </label>
+        <label id="fDistrictWrap">District
+          <select id="fDistrict"><option value="">All districts</option></select>
+        </label>
+        <label id="fFacilityWrap">Facility
+          <select id="fFacility"><option value="">All facilities</option></select>
+        </label>
+        <div class="filters-note" id="lastUpdated"></div>
+      </section>
+
+      <section aria-labelledby="dayTitle">
+        <div class="section-head">
+          <h2 id="dayTitle">Day</h2>
+          <span class="muted" id="dayCompare"></span>
+        </div>
+        <div class="kpis" id="dayKpis"></div>
+      </section>
+
+      <section aria-labelledby="periodTitle">
+        <div class="section-head">
+          <h2 id="periodTitle">Period</h2>
+          <span class="muted" id="periodInfo"></span>
+        </div>
+        <div class="kpis" id="periodKpis"></div>
+      </section>
+
+      <section class="charts">
+        <article class="card chart-card">
+          <header><h3>Daily patients &amp; tests</h3></header>
+          <div class="legend" id="lgCounts"></div>
+          <div class="chart-box"><canvas id="chCounts" aria-label="Daily patients and tests line chart" role="img"></canvas></div>
+        </article>
+        <article class="card chart-card">
+          <header><h3>Daily revenue (₹)</h3></header>
+          <div class="legend"></div>
+          <div class="chart-box"><canvas id="chRevenue" aria-label="Daily revenue bar chart" role="img"></canvas></div>
+        </article>
+        <article class="card chart-card">
+          <header><h3>Avg revenue per patient &amp; per test (₹)</h3></header>
+          <div class="legend" id="lgAvgRev"></div>
+          <div class="chart-box"><canvas id="chAvgRev" aria-label="Average revenue per patient and per test line chart" role="img"></canvas></div>
+        </article>
+        <article class="card chart-card">
+          <header><h3>Avg tests per patient</h3></header>
+          <div class="legend"></div>
+          <div class="chart-box"><canvas id="chTpp" aria-label="Average tests per patient line chart" role="img"></canvas></div>
+        </article>
+      </section>
+
+      <section class="tables">
+        <article class="card" id="districtCard">
+          <header class="card-head">
+            <h3>District-wise (period)</h3>
+          </header>
+          <div class="table-wrap"><table id="tblDistrict"></table></div>
+        </article>
+        <article class="card" id="facilityCard">
+          <header class="card-head">
+            <h3>Facility-wise (period)</h3>
+            <input type="search" id="facSearch" placeholder="Search facility…" aria-label="Search facility">
+          </header>
+          <div class="table-wrap tall"><table id="tblFacility"></table></div>
+        </article>
+        <article class="card" id="testCard">
+          <header class="card-head">
+            <h3>Top tests (period)</h3>
+            <span class="muted small" id="testNote"></span>
+          </header>
+          <div class="table-wrap tall"><table id="tblTests"></table></div>
+        </article>
+      </section>
+
+      <section>
+        <article class="card">
+          <header class="card-head">
+            <h3>Daily summary</h3>
+            <button class="btn small" type="button" data-action="export">Export to Excel</button>
+          </header>
+          <div class="table-wrap tall"><table id="tblDaily"></table></div>
+        </article>
+      </section>
+
+      <section>
+        <article class="card">
+          <header class="card-head"><h3>Upload history</h3></header>
+          <div class="table-wrap"><table id="tblUploads"></table></div>
+        </article>
+      </section>
+    </div>
+  </main>
+
+  <!-- Import / column mapping dialog -->
+  <dialog id="importDlg">
+    <form method="dialog" class="dlg">
+      <header class="dlg-head">
+        <div>
+          <h2>Check &amp; import</h2>
+          <p class="muted small" id="impFile"></p>
+        </div>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
+      </header>
+      <div class="dlg-body">
+        <div class="grid2">
+          <label id="impSheetWrap">Sheet
+            <select id="impSheet"></select>
+          </label>
+          <label>File format
+            <select id="impMode">
+              <option value="line">One row per test (line list)</option>
+              <option value="summary">Daily summary (counts)</option>
+            </select>
+          </label>
+        </div>
+        <h3 class="mini">Columns</h3>
+        <p class="muted small">Auto-detected from the header row. Correct any column if needed — your choice is remembered for the next upload of the same format.</p>
+        <div class="map-grid" id="impMap"></div>
+        <label id="impDateWrap" hidden>Report date for this file (no date column found)
+          <input type="date" id="impDate">
+        </label>
+        <div class="imp-summary" id="impSummary"></div>
+        <details>
+          <summary>Preview first rows</summary>
+          <div class="table-wrap"><table id="impPreview"></table></div>
+        </details>
+      </div>
+      <footer class="dlg-foot">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn primary" id="impGo" value="default" autofocus>Import</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="js/vendor/xlsx.full.min.js"></script>
+  <script src="js/vendor/chart.umd.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
